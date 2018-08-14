@@ -1,7 +1,6 @@
 name: Super Entity Reference Entity Formatter
 type: module
-description: 'What an incredible formatter! So flexible!'
-# core: 8.x
-package: field
+description: 'Provides field formatter that allows view mode to be set per content type.'
+package: Fields
 version: VERSION
 core: '8.x'
