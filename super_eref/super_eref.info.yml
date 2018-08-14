@@ -1,0 +1,7 @@
+name: Super Entity Reference Entity Formatter
+type: module
+description: 'What an incredible formatter! So flexible!'
+# core: 8.x
+package: field
+version: VERSION
+core: '8.x'
