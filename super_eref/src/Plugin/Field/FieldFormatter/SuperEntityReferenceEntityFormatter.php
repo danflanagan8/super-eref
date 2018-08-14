@@ -2,18 +2,13 @@
 
 namespace Drupal\super_eref\Plugin\Field\FieldFormatter;
 
-use Drupal\Core\Entity\EntityDisplayRepositoryInterface;
-use Drupal\Core\Entity\EntityTypeManagerInterface;
-use Drupal\Core\Field\FieldDefinitionInterface;
-use Drupal\Core\Field\FieldItemListInterface;
+use Drupal\Core\Field\Plugin\Field\FieldFormatter\EntityReferenceEntityFormatter;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\Core\Logger\LoggerChannelFactoryInterface;
-use Drupal\Core\Plugin\ContainerFactoryPluginInterface;
-use Drupal\Core\Field\Plugin\Field\FieldFormatter\EntityReferenceFormatterBase;
-use Symfony\Component\DependencyInjection\ContainerInterface;
-
+use Drupal\Core\Field\FieldItemListInterface;
+use Drupal\Core\Field\FieldDefinitionInterface;
 /**
- * Plugin implementation of the 'entity reference rendered entity' formatter.
+ * Extension of plugin implementation of the 'entity reference rendered entity' formatter.
+ * This extension allows view mode to be chosen per content type.
  *
  * @FieldFormatter(
  *   id = "super_eref",
@@ -24,96 +19,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
  *   }
  * )
  */
-class SuperEntityReferenceEntityFormatter extends EntityReferenceFormatterBase implements ContainerFactoryPluginInterface {
-
-  /**
-   * The number of times this formatter allows rendering the same entity.
-   *
-   * @var int
-   */
-  const RECURSIVE_RENDER_LIMIT = 20;
-
-  /**
-   * The logger factory.
-   *
-   * @var \Drupal\Core\Logger\LoggerChannelFactoryInterface
-   */
-  protected $loggerFactory;
-
-  /**
-   * The entity type manager.
-   *
-   * @var \Drupal\Core\Entity\EntityTypeManagerInterface
-   */
-  protected $entityTypeManager;
-
-  /**
-   * The entity display repository.
-   *
-   * @var \Drupal\Core\Entity\EntityDisplayRepositoryInterface
-   */
-  protected $entityDisplayRepository;
-
-  /**
-   * An array of counters for the recursive rendering protection.
-   *
-   * Each counter takes into account all the relevant information about the
-   * field and the referenced entity that is being rendered.
-   *
-   * @see \Drupal\Core\Field\Plugin\Field\FieldFormatter\EntityReferenceEntityFormatter::viewElements()
-   *
-   * @var array
-   */
-  protected static $recursiveRenderDepth = [];
-
-  /**
-   * Constructs a EntityReferenceEntityFormatter instance.
-   *
-   * @param string $plugin_id
-   *   The plugin_id for the formatter.
-   * @param mixed $plugin_definition
-   *   The plugin implementation definition.
-   * @param \Drupal\Core\Field\FieldDefinitionInterface $field_definition
-   *   The definition of the field to which the formatter is associated.
-   * @param array $settings
-   *   The formatter settings.
-   * @param string $label
-   *   The formatter label display setting.
-   * @param string $view_mode
-   *   The view mode.
-   * @param array $third_party_settings
-   *   Any third party settings settings.
-   * @param \Drupal\Core\Logger\LoggerChannelFactoryInterface $logger_factory
-   *   The logger factory.
-   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entity_type_manager
-   *   The entity type manager.
-   * @param \Drupal\Core\Entity\EntityDisplayRepositoryInterface $entity_display_repository
-   *   The entity display repository.
-   */
-  public function __construct($plugin_id, $plugin_definition, FieldDefinitionInterface $field_definition, array $settings, $label, $view_mode, array $third_party_settings, LoggerChannelFactoryInterface $logger_factory, EntityTypeManagerInterface $entity_type_manager, EntityDisplayRepositoryInterface $entity_display_repository) {
-    parent::__construct($plugin_id, $plugin_definition, $field_definition, $settings, $label, $view_mode, $third_party_settings);
-    $this->loggerFactory = $logger_factory;
-    $this->entityTypeManager = $entity_type_manager;
-    $this->entityDisplayRepository = $entity_display_repository;
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
-    return new static(
-      $plugin_id,
-      $plugin_definition,
-      $configuration['field_definition'],
-      $configuration['settings'],
-      $configuration['label'],
-      $configuration['view_mode'],
-      $configuration['third_party_settings'],
-      $container->get('logger.factory'),
-      $container->get('entity_type.manager'),
-      $container->get('entity_display.repository')
-    );
-  }
+class SuperEntityReferenceEntityFormatter extends EntityReferenceEntityFormatter {
 
   /**
    * {@inheritdoc}
@@ -122,7 +28,6 @@ class SuperEntityReferenceEntityFormatter extends EntityReferenceFormatterBase i
     return [
       'view_mode' => array(),
       'default_view_mode' => 'default',
-      'link' => FALSE,
     ] + parent::defaultSettings();
   }
 
@@ -152,7 +57,6 @@ class SuperEntityReferenceEntityFormatter extends EntityReferenceFormatterBase i
         '#type' => 'select',
         '#options' => $options,
         '#default_value' => $this->getSetting('view_mode')[$content_type->id()],
-        //'#default_value' => 'default',
       ];
     }
     return $elements;
@@ -163,17 +67,26 @@ class SuperEntityReferenceEntityFormatter extends EntityReferenceFormatterBase i
    */
   public function settingsSummary() {
     $summary = [];
-
     $summary[] = t('Rendering with bundle-specific view modes');
-
     return $summary;
   }
+
+  /**
+   * NOTE: I really wanted to override getSetting for the special case of 'view_mode'
+   * instead of making changes inside of viewElements. Unfortunately, the return
+   * depends on the $entity value each time through the foreach loop in viewElements.
+   * As it stands, this viewElements function has two blocks of code that
+   * are different from the parent.
+   */
 
   /**
    * {@inheritdoc}
    */
   public function viewElements(FieldItemListInterface $items, $langcode) {
+    /* BEGIN DIFFERENCE FROM PARENT */
+    // We give this variable a plural name.
     $view_modes = $this->getSetting('view_mode');
+    /* END DIFFERENCE FROM PARENT */
     $elements = [];
 
     foreach ($this->getEntitiesToView($items, $langcode) as $delta => $entity) {
@@ -209,12 +122,14 @@ class SuperEntityReferenceEntityFormatter extends EntityReferenceFormatterBase i
         return $elements;
       }
 
+      /* BEGIN DIFFERENCE FROM PARENT */
       //What view mode should be used?
       if(isset($view_modes[$entity->getType()]) && $view_modes[$entity->getType()]){
         $view_mode = $view_modes[$entity->getType()];
       }else{
         $view_mode = $this->getSetting('default_view_mode');
       }
+      /* END DIFFERENCE FROM PARENT */
 
       $view_builder = $this->entityTypeManager->getViewBuilder($entity->getEntityTypeId());
       $elements[$delta] = $view_builder->view($entity, $view_mode, $entity->language()->getId());
