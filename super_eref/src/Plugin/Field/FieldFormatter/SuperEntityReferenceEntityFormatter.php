@@ -36,6 +36,7 @@ class SuperEntityReferenceEntityFormatter extends EntityReferenceEntityFormatter
    */
   public function settingsForm(array $form, FormStateInterface $form_state) {
     $content_types = \Drupal::service('entity.manager')->getStorage('node_type')->loadMultiple();
+    $allowed_content_types = $this->getFieldSettings()['handler_settings']['target_bundles'];
     $options = array("" => "- Select -");
     $view_modes = $this->entityDisplayRepository->getViewModeOptions($this->getFieldSetting('target_type'));
     $options = array_merge($options, $view_modes);
@@ -52,12 +53,14 @@ class SuperEntityReferenceEntityFormatter extends EntityReferenceEntityFormatter
       '#type' => 'container',
     ];
     foreach($content_types as $content_type){
-      $elements['view_mode'][$content_type->id()] = [
-        '#title' => t($content_type->label()),
-        '#type' => 'select',
-        '#options' => $options,
-        '#default_value' => $this->getSetting('view_mode')[$content_type->id()],
-      ];
+      if(in_array($content_type->id(), $allowed_content_types)){
+        $elements['view_mode'][$content_type->id()] = [
+          '#title' => t($content_type->label()),
+          '#type' => 'select',
+          '#options' => $options,
+          '#default_value' => $this->getSetting('view_mode')[$content_type->id()],
+        ];
+      }
     }
     return $elements;
   }
