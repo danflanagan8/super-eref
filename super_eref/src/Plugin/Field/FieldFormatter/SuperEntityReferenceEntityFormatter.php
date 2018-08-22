@@ -35,8 +35,8 @@ class SuperEntityReferenceEntityFormatter extends EntityReferenceEntityFormatter
    * {@inheritdoc}
    */
   public function settingsForm(array $form, FormStateInterface $form_state) {
-    $content_types = \Drupal::service('entity.manager')->getStorage('node_type')->loadMultiple();
-    $allowed_content_types = isset($this->getFieldSettings()['handler_settings']['target_bundles']) ? $this->getFieldSettings()['handler_settings']['target_bundles'] : array();
+    $bundles = \Drupal::service('entity_type.bundle.info')->getBundleInfo($this->getFieldSetting('target_type'));
+    $allowed_bundles = isset($this->getFieldSettings()['handler_settings']['target_bundles']) ? $this->getFieldSettings()['handler_settings']['target_bundles'] : array();
     $options = array("" => "- Select -");
     $view_modes = $this->entityDisplayRepository->getViewModeOptions($this->getFieldSetting('target_type'));
     $options = array_merge($options, $view_modes);
@@ -52,13 +52,14 @@ class SuperEntityReferenceEntityFormatter extends EntityReferenceEntityFormatter
       '#tree' => TRUE,
       '#type' => 'container',
     ];
-    foreach($content_types as $content_type){
-      if(empty($allowed_content_types) || in_array($content_type->id(), $allowed_content_types)){
-        $elements['view_mode'][$content_type->id()] = [
-          '#title' => t($content_type->label()),
+    foreach($bundles as $key=>$val){
+      $label = $val['label'];
+      if(empty($allowed_bundles) || in_array($key, $allowed_bundles)){
+        $elements['view_mode'][$key] = [
+          '#title' => t($label),
           '#type' => 'select',
           '#options' => $options,
-          '#default_value' => $this->getSetting('view_mode')[$content_type->id()],
+          '#default_value' => $this->getSetting('view_mode')[$key],
         ];
       }
     }
@@ -127,8 +128,8 @@ class SuperEntityReferenceEntityFormatter extends EntityReferenceEntityFormatter
 
       /* BEGIN DIFFERENCE FROM PARENT */
       //What view mode should be used?
-      if(isset($view_modes[$entity->getType()]) && $view_modes[$entity->getType()]){
-        $view_mode = $view_modes[$entity->getType()];
+      if(isset($view_modes[$entity->bundle()]) && $view_modes[$entity->bundle()]){
+        $view_mode = $view_modes[$entity->bundle()];
       }else{
         $view_mode = $this->getSetting('default_view_mode');
       }
@@ -146,14 +147,6 @@ class SuperEntityReferenceEntityFormatter extends EntityReferenceEntityFormatter
     }
 
     return $elements;
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public static function isApplicable(FieldDefinitionInterface $field_definition) {
-    // This formatter is only available for nodes.
-    return $field_definition->getFieldStorageDefinition()->getSetting('target_type') == 'node';
   }
 
 }
